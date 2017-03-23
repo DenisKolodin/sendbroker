@@ -1,15 +1,39 @@
 #[macro_use]
 extern crate log;
 
+use std::fmt;
+use std::error;
 use std::hash::Hash;
 use std::thread;
 use std::sync::mpsc::{channel, Sender, SendError, RecvError};
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub enum Error {
     ConnectionBroken,
     NoRegistration,
 }
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        match *self {
+            Error::ConnectionBroken => "broker connection broken",
+            Error::NoRegistration => "no registration in broker",
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        None
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use std::error::Error;
+        f.write_str(self.description())
+    }
+}
+
 
 impl<T> From<SendError<T>> for Error {
     fn from(_: SendError<T>) -> Self {
