@@ -68,9 +68,16 @@ struct Request<I, T> {
     recipient: Sender<Option<Sender<T>>>,
 }
 
-#[derive(Clone)]
 pub struct SendBroker<I, T> {
     sender: Sender<Request<I, T>>,
+}
+
+impl<I, T> Clone for SendBroker<I, T> {
+    fn clone(&self) -> Self {
+        SendBroker {
+            sender: self.sender.clone(),
+        }
+    }
 }
 
 impl<I, T> SendBroker<I, T>
