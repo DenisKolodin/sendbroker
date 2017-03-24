@@ -81,7 +81,7 @@ impl<I, T> Clone for SendBroker<I, T> {
 }
 
 impl<I, T> SendBroker<I, T>
-    where I: Hash + Eq + Send + 'static, T: Send + 'static
+    where I: fmt::Debug + Hash + Eq + Send + 'static, T: Send + 'static
 {
     pub fn new() -> Self {
         let (tx, rx) = channel();
@@ -93,12 +93,15 @@ impl<I, T> SendBroker<I, T>
                         let opt = {
                             match action {
                                 Action::Register(id, conn) => {
+                                    trace!("Register in broker id: {:?}", id);
                                     map.insert(id, conn)
                                 },
                                 Action::Unregister(id) => {
+                                    trace!("Unregister in broker id: {:?}", id);
                                     map.remove(&id)
                                 },
                                 Action::Find(id) => {
+                                    trace!("Finding in broker id: {:?}", id);
                                     map.get(&id).cloned()
                                 },
                             }
