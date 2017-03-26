@@ -5,8 +5,8 @@ use std::fmt;
 use std::error;
 use std::result;
 use std::hash::Hash;
-use std::thread;
-use std::sync::mpsc::{channel, Sender, SendError, RecvError};
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{Sender, SendError, RecvError};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -57,6 +57,7 @@ pub trait Finder<I, T> {
     fn find_sender(&self, id: I) -> Result<T>;
 }
 
+/*
 enum Action<I, T> {
     Register(I, Sender<T>),
     Unregister(I),
@@ -67,6 +68,66 @@ struct Request<I, T> {
     action: Action<I, T>,
     recipient: Sender<Option<Sender<T>>>,
 }
+*/
+
+pub struct SendBroker<I, T> {
+    map: Arc<Mutex<HashMap<I, Sender<T>>>>,
+}
+
+impl<I, T> SendBroker<I, T>
+    where I: Hash + Eq
+{
+    pub fn new() -> Self {
+        SendBroker {
+            map: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl<I, T> Clone for SendBroker<I, T> {
+    fn clone(&self) -> Self {
+        SendBroker {
+            map: self.map.clone(),
+        }
+    }
+}
+
+impl<I, T> Registrar<I, T> for SendBroker<I, T>
+    where I: fmt::Debug + Hash + Eq
+{
+    fn reg_sender(&self, id: I, sender: Sender<T>) -> Result<T> {
+        trace!("Register in broker id: {:?}", id);
+        let mut map = self.map.lock().unwrap();
+        match (*map).insert(id, sender) {
+            None => Ok(None),
+            some => Ok(some),
+        }
+    }
+
+    fn unreg_sender(&self, id: I) -> Result<T> {
+        trace!("Unregister in broker id: {:?}", id);
+        let mut map = self.map.lock().unwrap();
+        match (*map).remove(&id) {
+            None => Err(Error::ConnectionBroken),
+            some => Ok(some),
+        }
+    }
+}
+
+impl<I, T> Finder<I, T> for SendBroker<I, T>
+    where I: fmt::Debug + Hash + Eq
+{
+    fn find_sender(&self, id: I) -> Result<T> {
+        trace!("Finding in broker id: {:?}", id);
+        let map = self.map.lock().unwrap();
+        match (*map).get(&id).cloned() {
+            None => Err(Error::ConnectionBroken),
+            some => Ok(some),
+        }
+    }
+}
+
+/*
 
 pub struct SendBroker<I, T> {
     sender: Sender<Request<I, T>>,
@@ -160,3 +221,4 @@ mod tests {
     fn test_sendbroker() {
     }
 }
+*/
