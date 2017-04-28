@@ -1,47 +1,27 @@
-#[macro_use]
-extern crate log;
+#[macro_use] extern crate log;
+#[macro_use] extern crate error_chain;
 
 use std::fmt;
-use std::error;
-use std::result;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 use std::collections::HashMap;
 
-#[derive(Debug)]
-pub enum Error {
-    NotFound,
-}
-
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::NotFound => "not found",
-        }
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
-        None
+error_chain! {
+    errors {
+        NotFound
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::error::Error;
-        f.write_str(self.description())
-    }
-}
-
-pub type Result<T> = result::Result<Option<Sender<T>>, Error>;
+pub type CallResult<T> = Result<Option<Sender<T>>>;
 
 pub trait Registrar<I, T> {
-    fn reg_sender(&self, id: I, sender: Sender<T>) -> Result<T>;
-    fn unreg_sender(&self, id: I) -> Result<T>;
+    fn reg_sender(&self, id: I, sender: Sender<T>) -> CallResult<T>;
+    fn unreg_sender(&self, id: I) -> CallResult<T>;
 }
 
 pub trait Finder<I, T> {
-    fn find_sender(&self, id: I) -> Result<T>;
+    fn find_sender(&self, id: I) -> CallResult<T>;
 }
 
 pub struct SendBroker<I, T> {
@@ -69,7 +49,7 @@ impl<I, T> Clone for SendBroker<I, T> {
 impl<I, T> Registrar<I, T> for SendBroker<I, T>
     where I: fmt::Debug + Hash + Eq
 {
-    fn reg_sender(&self, id: I, sender: Sender<T>) -> Result<T> {
+    fn reg_sender(&self, id: I, sender: Sender<T>) -> CallResult<T> {
         trace!("Register in broker id: {:?}", id);
         let mut map = self.map.lock().unwrap();
         match (*map).insert(id, sender) {
@@ -78,11 +58,11 @@ impl<I, T> Registrar<I, T> for SendBroker<I, T>
         }
     }
 
-    fn unreg_sender(&self, id: I) -> Result<T> {
+    fn unreg_sender(&self, id: I) -> CallResult<T> {
         trace!("Unregister in broker id: {:?}", id);
         let mut map = self.map.lock().unwrap();
         match (*map).remove(&id) {
-            None => Err(Error::NotFound),
+            None => Err(ErrorKind::NotFound.into()),
             some => Ok(some),
         }
     }
@@ -91,11 +71,11 @@ impl<I, T> Registrar<I, T> for SendBroker<I, T>
 impl<I, T> Finder<I, T> for SendBroker<I, T>
     where I: fmt::Debug + Hash + Eq
 {
-    fn find_sender(&self, id: I) -> Result<T> {
+    fn find_sender(&self, id: I) -> CallResult<T> {
         trace!("Finding in broker id: {:?}", id);
         let map = self.map.lock().unwrap();
         match (*map).get(&id).cloned() {
-            None => Err(Error::NotFound),
+            None => Err(ErrorKind::NotFound.into()),
             some => Ok(some),
         }
     }
